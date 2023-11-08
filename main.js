@@ -5,19 +5,68 @@ const gl = canvas.getContext('webgl');
 // Vertex shader program
 const vsSource = `
     attribute vec4 aVertexPosition;
+    attribute vec4 aVertexColor;
+    varying lowp vec4 vColor;
     uniform mat4 uModelViewMatrix;
     uniform mat4 uProjectionMatrix;
     void main() {
-      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+        vColor = aVertexColor; 
     }
 `;
 
 // Fragment shader program
 const fsSource = `
+    varying lowp vec4 vColor; 
     void main() {
-      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);  // white color
+        gl_FragColor = vColor; 
     }
 `;
+
+// Colors
+const colors = [
+    // Front face: white
+    1.0, 1.0, 1.0, 1.0,    // Top Right
+    1.0, 1.0, 1.0, 1.0,    // Top Left
+    1.0, 1.0, 1.0, 1.0,    // Bottom Right
+    1.0, 1.0, 1.0, 1.0,    // Bottom Left
+
+    // Back face: yellow
+    1.0, 1.0, 0.0, 1.0,    // Top Right
+    1.0, 1.0, 0.0, 1.0,    // Top Left
+    1.0, 1.0, 0.0, 1.0,    // Bottom Right
+    1.0, 1.0, 0.0, 1.0,    // Bottom Left
+
+    // Top face: green
+    0.0, 1.0, 0.0, 1.0,    // Top Right
+    0.0, 1.0, 0.0, 1.0,    // Top Left
+    0.0, 1.0, 0.0, 1.0,    // Bottom Right
+    0.0, 1.0, 0.0, 1.0,    // Bottom Left
+
+    // Bottom face: blue
+    0.0, 0.0, 1.0, 1.0,    // Top Right
+    0.0, 0.0, 1.0, 1.0,    // Top Left
+    0.0, 0.0, 1.0, 1.0,    // Bottom Right
+    0.0, 0.0, 1.0, 1.0,    // Bottom Left
+
+    // Right face: orange
+    1.0, 0.65, 0.0, 1.0,   // Top Right
+    1.0, 0.65, 0.0, 1.0,   // Top Left
+    1.0, 0.65, 0.0, 1.0,   // Bottom Right
+    1.0, 0.65, 0.0, 1.0,   // Bottom Left
+
+    // Left face: red
+    1.0, 0.0, 0.0, 1.0,    // Top Right
+    1.0, 0.0, 0.0, 1.0,    // Top Left
+    1.0, 0.0, 0.0, 1.0,    // Bottom Right
+    1.0, 0.0, 0.0, 1.0,    // Bottom Left
+];
+
+// Create a buffer for the cube's vertex colors.
+const colorBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+
 
 // Function to compile a shader
 function loadShader(gl, type, source) {
@@ -27,7 +76,7 @@ function loadShader(gl, type, source) {
 
     // Check if the shader compiled successfully
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        alert('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
+        alert('FIX THIS SHIT ' + gl.getShaderInfoLog(shader));
         gl.deleteShader(shader);
         return null;
     }
@@ -40,7 +89,6 @@ function initShaderProgram(gl, vsSource, fsSource) {
     const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
     const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
 
-    // Create the shader program
     const shaderProgram = gl.createProgram();
     gl.attachShader(shaderProgram, vertexShader);
     gl.attachShader(shaderProgram, fragmentShader);
@@ -48,21 +96,20 @@ function initShaderProgram(gl, vsSource, fsSource) {
 
     // If creating the shader program failed, alert
     if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-        alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
+        alert('THIS SHIT BROKEN ' + gl.getProgramInfoLog(shaderProgram));
         return null;
     }
 
     return shaderProgram;
 }
 
-// Initialize a shader program; this is where all the lighting for the vertices and so forth is established.
 const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
 
-// Collect all the info needed to use the shader program.
 const programInfo = {
     program: shaderProgram,
     attribLocations: {
         vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+        vertexColor: gl.getAttribLocation(shaderProgram, 'aVertexColor'),
     },
     uniformLocations: {
         projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
@@ -70,13 +117,27 @@ const programInfo = {
     },
 };
 
+let rotationDirection = 1;
+
+// Function to reverse the rotation direction
+function reverseRotation() {
+    rotationDirection *= -1;
+}
+
+document.addEventListener('DOMContentLoaded', (event) => {
+    // Attach the reverse rotation function to the button click event
+    document.getElementById('reverseRotationButton').addEventListener('click', reverseRotation);
+});
+
+
+
 // Function to initialize the buffers for a cube
 function initBuffers(gl) {
     // Create a buffer for the cube's vertex positions.
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
-    // Create an array of positions for the cube.
+    // Array for cube faces
     const positions = [
         // Front face
         -1.0, -1.0,  1.0,
@@ -118,7 +179,7 @@ function initBuffers(gl) {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
 
     
-    // Set up the indices for the vertices that make up the cube's faces.
+    // Indicces for cube faces
     const indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
 
@@ -140,77 +201,79 @@ function initBuffers(gl) {
 }
 function createPyramidGeometry(gl) {
     const pyramidVertices = [
-        // Base (Y = 0)
+        // Base (Y = 0) - Two triangles forming a square
         -0.5, 0, -0.5,   // 0: Bottom Left
          0.5, 0, -0.5,   // 1: Bottom Right
          0.5, 0,  0.5,   // 2: Top Right
+
+         0.5, 0,  0.5,   // 2: Top Right
         -0.5, 0,  0.5,   // 3: Top Left
+        -0.5, 0, -0.5,   // 0: Bottom Left
 
         // Sides (Pyramid Point = 0, 1, 0)
-        // -0.5, 0, -0.5,   // 0: Base Bottom Left
-        //  0.5, 0, -0.5,   // 1: Base Bottom Right
-        //  0, 1, 0,        // Pyramid Point
+        -0.5, 0, -0.5,   // 0: Base Bottom Left
+         0.5, 0, -0.5,   // 1: Base Bottom Right
+         0, 1, 0,        // Pyramid Point
 
-        //  0.5, 0, -0.5,   // 1: Base Bottom Right
-        //  0.5, 0,  0.5,   // 2: Base Top Right
-        //  0, 1, 0,        // Pyramid Point
+         0.5, 0, -0.5,   // 1: Base Bottom Right
+         0.5, 0,  0.5,   // 2: Base Top Right
+         0, 1, 0,        // Pyramid Point
 
-        //  0.5, 0,  0.5,   // 2: Base Top Right
-        // -0.5, 0,  0.5,   // 3: Base Top Left
-        //  0, 1, 0,        // Pyramid Point
+         0.5, 0,  0.5,   // 2: Base Top Right
+        -0.5, 0,  0.5,   // 3: Base Top Left
+         0, 1, 0,        // Pyramid Point
 
-        // -0.5, 0,  0.5,   // 3: Base Top Left
-        // -0.5, 0, -0.5,   // 0: Base Bottom Left
-        //  0, 1, 0,        // Pyramid Point
+        -0.5, 0,  0.5,   // 3: Base Top Left
+        -0.5, 0, -0.5,   // 0: Base Bottom Left
+         0, 1, 0,        // Pyramid Point
     ];
-    
-        const pyramidBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, pyramidBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pyramidVertices), gl.STATIC_DRAW);
-    
-        return pyramidBuffer;
+
+    const pyramidBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pyramidBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pyramidVertices), gl.STATIC_DRAW);
+
+    return pyramidBuffer;
 }
 
 // Initialize the buffers
 const buffers = initBuffers(gl);
 const pyramidBuffer = createPyramidGeometry(gl);
+buffers.color = colorBuffer;
 
 let rotation = 0.0;
 
 function drawScene(gl, programInfo, buffers, pyramidBuffer, deltaTime) {
     gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
     gl.clearDepth(1.0);                 // Clear everything
-    gl.disable(gl.CULL_FACE);
 
-    gl.enable(gl.DEPTH_TEST);           // Enable depth testing
-    gl.depthFunc(gl.LEQUAL);            // Near things obscure far things
+    gl.enable(gl.DEPTH_TEST);           
+    gl.depthFunc(gl.LEQUAL);            
 
     // Clear the canvas before we start drawing on it.
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Create a perspective matrix
-    const fieldOfView = 45 * Math.PI / 180;   // in radians
+    const fieldOfView = 45 * Math.PI / 180;  
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     const zNear = 0.1;
     const zFar = 100.0;
     const projectionMatrix = mat4.create();
-    mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
+    mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar); 
 
     const radius = 10; // Distance from the object
-    const cameraHeight = radius * Math.sin(Math.PI / 4); // Height of camera to achieve 45-degree angle
-    const cameraDistance = radius * Math.cos(Math.PI / 4); // Distance on the ground from the object to the camera
+    const cameraHeight = radius * Math.sin(Math.PI / 4); // 45 degree viewing angle
+    const cameraDistance = radius * Math.cos(Math.PI / 4); 
 
-    // Calculate the camera's orbit position
+    // Camera's orbit position
     const eyeX = cameraDistance * Math.cos(rotation);
     const eyeZ = cameraDistance * Math.sin(rotation);
 
-    const eye = [eyeX, cameraHeight, eyeZ]; // Eye position (the position of the camera)
+    const eye = [eyeX, cameraHeight, eyeZ]; // Eye position
     const center = [0, 0, 0]; // The point we are looking at
     const up = [0, 1, 0]; // "up" direction for the camera
     const modelViewMatrix = mat4.create();
     mat4.lookAt(modelViewMatrix, eye, center, up);
 
-    // Tell WebGL to use our program when drawing
     gl.useProgram(programInfo.program);
 
     // Set the shader uniforms
@@ -218,6 +281,18 @@ function drawScene(gl, programInfo, buffers, pyramidBuffer, deltaTime) {
         programInfo.uniformLocations.projectionMatrix,
         false,
         projectionMatrix);
+
+        {
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffers.color);
+            gl.vertexAttribPointer(
+                programInfo.attribLocations.vertexColor,
+                4, // number of components per vertex color (r, g, b, a)
+                gl.FLOAT,
+                false,
+                0,
+                0);
+            gl.enableVertexAttribArray(programInfo.attribLocations.vertexColor);
+        }
 
 
     // Draw Cube
@@ -240,16 +315,18 @@ function drawScene(gl, programInfo, buffers, pyramidBuffer, deltaTime) {
             false,
             modelViewMatrix);
 
-        const vertexCount = 36; // Because each face has 2 triangles and each triangle has 3 vertices
+        const vertexCount = 36; 
         const type = gl.UNSIGNED_SHORT;
         const offset = 0;
         gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
     }
+    let cubeModelViewMatrix = mat4.clone(modelViewMatrix);
+
     // Draw Pyramid
     {
         // Apply a transformation to position the pyramid relative to the cube
-        const pyramidModelViewMatrix = mat4.create();
-        mat4.translate(pyramidModelViewMatrix, modelViewMatrix, [1.5, 0.0, 0.0]); // Move to the right of the cube
+        let pyramidModelViewMatrix = mat4.create();
+        mat4.translate(pyramidModelViewMatrix, cubeModelViewMatrix, [1.5, 0.0, 0.0]); // Position the pyramid relative to the cube
         mat4.scale(pyramidModelViewMatrix, pyramidModelViewMatrix, [0.5, 0.5, 0.5]); // Scale down the pyramid
 
         // Set up the pyramid's vertex position attribute
@@ -265,12 +342,11 @@ function drawScene(gl, programInfo, buffers, pyramidBuffer, deltaTime) {
             false,
             pyramidModelViewMatrix);
 
-        // Draw the pyramid
-        gl.drawArrays(gl.TRIANGLES, 0, 12); // 4 triangles, 3 vertices each
+        gl.drawArrays(gl.TRIANGLES, 0, 18);
     }
 
     // Update the rotation for the next draw
-    rotation += deltaTime;
+    rotation += deltaTime * rotationDirection;
     
 }
 
